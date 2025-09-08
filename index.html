@@ -186,8 +186,13 @@
         // マイクアクセスと録音の開始/停止
         async function startRecording() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/wav;codecs=pcm' });
+                // 修正された getUserMedia() の呼び出し
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: true,
+                    video: false // ここでvideoを明示的に無効にします
+                });
+                
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
                 audioChunks = [];
 
                 mediaRecorder.ondataavailable = event => {
@@ -195,7 +200,7 @@
                 };
 
                 mediaRecorder.onstop = () => {
-                    const audioBlob = new Blob(audioChunks, { 'type' : 'audio/wav' });
+                    const audioBlob = new Blob(audioChunks, { 'type' : 'audio/webm' });
                     transcribeAudio(audioBlob);
                     stream.getTracks().forEach(track => track.stop());
                 };
@@ -208,7 +213,7 @@
                 statusMessage.textContent = "録音中...";
             } catch (error) {
                 console.error('マイクアクセスエラー:', error);
-                statusMessage.textContent = "マイクにアクセスできませんでした。別のアプリが使用していないか確認してください。";
+                statusMessage.textContent = `マイクにアクセスできませんでした。エラー詳細: ${error.name}`;
             }
         }
 
@@ -233,4 +238,3 @@
     </script>
 </body>
 </html>
-
