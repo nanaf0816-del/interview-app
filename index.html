@@ -31,7 +31,7 @@
             <label class="block text-gray-700 font-semibold mb-2">あなたの回答</label>
             <div id="status-message" class="text-sm text-gray-500 mb-2">マイクへのアクセスを許可してください。</div>
             <div class="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4">
-                <button id="record-button" class="w-full sm:w-auto px-6 py-3 rounded-full bg-red-500 text-white font-bold hover:bg-red-600 transition-colors shadow-md disabled:bg-red-300" disabled>
+                <button id="record-button" class="w-full sm:w-auto px-6 py-3 rounded-full bg-red-500 text-white font-bold hover:bg-red-600 transition-colors shadow-md disabled:bg-red-300">
                     録音開始
                 </button>
                 <div id="stop-button-container" class="hidden w-full sm:w-auto">
@@ -64,6 +64,7 @@
         // あなたのAzure WebアプリのURLに置き換えてください
         const INTERVIEW_API_BASE_URL = "https://stt-api-dev-002-bxhfdnb9guczhubp.eastasia-01.azurewebsites.net";
         const STT_API_BASE_URL = "https://stt-api-dev-001.azurewebsites.net";
+        const TRANSCRIBE_URL = `${STT_API_BASE_URL}/v1/transcribe`; // 音声認識APIの完全なURL
 
         // UI要素
         const questionDisplay = document.getElementById("question-display");
@@ -106,9 +107,10 @@
             try {
                 statusMessage.textContent = "回答を認識中...";
                 const formData = new FormData();
-                formData.append('file', audioBlob, 'audio.wav');
+                formData.append('file', audioBlob, 'audio.webm'); // mimetypeに合わせてファイル拡張子をwebmに変更
                 
-                const response = await fetch(`${STT_API_BASE_URL}/v1/transcribe?respond_first=True`, {
+                // 正しいAPIエンドポイントにPOSTリクエストを送信
+                const response = await fetch(TRANSCRIBE_URL, {
                     method: 'POST',
                     body: formData
                 });
@@ -176,6 +178,7 @@
                 answerTextArea.textContent = "";
                 statusMessage.textContent = "準備完了です。録音ボタンを押して次の回答を開始してください。";
                 recordButton.disabled = false;
+                nextButton.disabled = true; // 次の質問ボタンを非活性化
 
             } catch (error) {
                 console.error('Error generating next question:', error);
@@ -213,7 +216,7 @@
                 statusMessage.textContent = "録音中...";
             } catch (error) {
                 console.error('マイクアクセスエラー:', error);
-                statusMessage.textContent = `マイクにアクセスできませんでした。エラー詳細: ${error.name}`;
+                statusMessage.textContent = `マイクにアクセスできませんでした。別のアプリが使用していないか確認してください。`;
             }
         }
 
