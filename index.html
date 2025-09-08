@@ -107,7 +107,7 @@
             try {
                 statusMessage.textContent = "回答を認識中...";
                 const formData = new FormData();
-                formData.append('file', audioBlob, 'audio.webm'); // mimetypeに合わせてファイル拡張子をwebmに変更
+                formData.append('file', audioBlob, 'audio.webm');
                 
                 // 正しいAPIエンドポイントにPOSTリクエストを送信
                 const response = await fetch(TRANSCRIBE_URL, {
@@ -130,7 +130,12 @@
                 }
             } catch (error) {
                 console.error('Error transcribing audio:', error);
-                statusMessage.textContent = `エラーが発生しました: ${error.message}`;
+                // CORSエラーの可能性を明示的にチェック
+                if (error.message.includes('Failed to fetch') || error.message.includes('Load failed')) {
+                    statusMessage.textContent = "APIへの接続に失敗しました。このサイトのドメインがAPIサーバーで許可されていない可能性があります。";
+                } else {
+                    statusMessage.textContent = `エラーが発生しました: ${error.message}`;
+                }
             }
         }
 
@@ -178,7 +183,7 @@
                 answerTextArea.textContent = "";
                 statusMessage.textContent = "準備完了です。録音ボタンを押して次の回答を開始してください。";
                 recordButton.disabled = false;
-                nextButton.disabled = true; // 次の質問ボタンを非活性化
+                nextButton.disabled = true;
 
             } catch (error) {
                 console.error('Error generating next question:', error);
@@ -189,10 +194,9 @@
         // マイクアクセスと録音の開始/停止
         async function startRecording() {
             try {
-                // 修正された getUserMedia() の呼び出し
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     audio: true,
-                    video: false // ここでvideoを明示的に無効にします
+                    video: false
                 });
                 
                 mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
