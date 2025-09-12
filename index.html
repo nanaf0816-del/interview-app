@@ -1,0 +1,313 @@
+<!--
+面接練習アプリのクライアントサイドUIとAPI連携
+このファイルは、以下の機能を提供いたします。
+1. 面接の開始・終了を制御する。
+2. マイクから音声を録音し、音声認識APIに送信する。
+3. 音声認識APIからのテキストを、質問生成APIに送信する。
+4. 質問生成APIから返された次の質問と添削結果を表示する。
+5. 面接終了時に、全体の会話の全文と総合レビューを表示する。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>面接練習アプリ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl">
+        <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">面接練習アプリ</h1>
+        
+        <!-- 全体コントロールボタン -->
+        <div class="flex justify-center space-x-4 mb-6">
+            <button id="start-interview-button" class="px-6 py-3 rounded-full bg-blue-500 text-white font-bold hover:bg-blue-600 transition-colors shadow-md">
+                面接開始
+            </button>
+            <button id="end-interview-button" class="px-6 py-3 rounded-full bg-gray-500 text-white font-bold hover:bg-gray-600 transition-colors shadow-md hidden">
+                面接終了
+            </button>
+        </div>
+
+        <!-- 質問表示エリア -->
+        <div id="question-display" class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-blue-800 hidden">
+            質問を読み込み中...
+        </div>
+
+        <!-- 録音・回答エリア -->
+        <div id="interview-controls" class="hidden">
+            <div class="mb-4">
+                <label class="block text-gray-700 font-semibold mb-2">あなたの回答</label>
+                <div id="status-message" class="text-sm text-gray-500 mb-2"></div>
+                <div class="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4">
+                    <button id="record-button" class="w-full sm:w-auto px-6 py-3 rounded-full bg-red-500 text-white font-bold hover:bg-red-600 transition-colors shadow-md disabled:bg-red-300">
+                        録音開始
+                    </button>
+                    <div id="stop-button-container" class="hidden w-full sm:w-auto">
+                        <button id="stop-button" class="w-full px-6 py-3 rounded-full bg-gray-500 text-white font-bold hover:bg-gray-600 transition-colors shadow-md">
+                            録音停止
+                        </button>
+                    </div>
+                </div>
+                <div id="answer-text-area" class="mt-4 bg-gray-50 border border-gray-300 rounded-lg p-3 min-h-[100px] text-gray-800 break-words whitespace-pre-wrap">
+                    <!-- 文字起こし結果が表示される -->
+                </div>
+            </div>
+
+            <!-- 次へボタン -->
+            <div class="flex justify-center">
+                <button id="next-button" class="px-8 py-3 rounded-full bg-green-500 text-white font-bold hover:bg-green-600 transition-colors shadow-md disabled:bg-green-300" disabled>
+                    次の質問を生成
+                </button>
+            </div>
+
+            <!-- 添削結果表示エリア -->
+            <div id="review-display" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-6 hidden">
+                <h3 class="text-lg font-bold text-gray-800 mb-2">添削結果</h3>
+                <div id="review-content" class="text-gray-700"></div>
+            </div>
+        </div>
+
+        <!-- 全体結果表示エリア -->
+        <div id="full-review-display" class="bg-blue-100 border border-blue-300 rounded-lg p-4 mt-6 hidden">
+            <h3 class="text-lg font-bold text-gray-800 mb-2">全体の会話とレビュー</h3>
+            <div id="full-review-content" class="text-gray-700 whitespace-pre-wrap"></div>
+        </div>
+    </div>
+
+    <script>
+        const INTERVIEW_API_BASE_URL = "https://stt-api-dev-002-bxhfdnb9guczhubp.eastasia-01.azurewebsites.net";
+        const STT_API_BASE_URL = "https://stt-api-dev-001.azurewebsites.net";
+
+        const startInterviewButton = document.getElementById("start-interview-button");
+        const endInterviewButton = document.getElementById("end-interview-button");
+        const interviewControls = document.getElementById("interview-controls");
+        const questionDisplay = document.getElementById("question-display");
+        const recordButton = document.getElementById("record-button");
+        const stopButtonContainer = document.getElementById("stop-button-container");
+        const stopButton = document.getElementById("stop-button");
+        const nextButton = document.getElementById("next-button");
+        const answerTextArea = document.getElementById("answer-text-area");
+        const statusMessage = document.getElementById("status-message");
+        const reviewDisplay = document.getElementById("review-display");
+        const reviewContent = document.getElementById("review-content");
+        const fullReviewDisplay = document.getElementById("full-review-display");
+        const fullReviewContent = document.getElementById("full-review-content");
+
+        let currentQuestion = "";
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+        let conversationHistory = [];
+
+        // 面接開始ボタンの処理
+        async function startInterview() {
+            startInterviewButton.disabled = true;
+            endInterviewButton.classList.remove('hidden');
+            interviewControls.classList.remove('hidden');
+            questionDisplay.classList.remove('hidden');
+            fullReviewDisplay.classList.add('hidden');
+            conversationHistory = [];
+            getInitialQuestion();
+        }
+
+        // 面接終了ボタンの処理
+        async function endInterview() {
+            endInterviewButton.disabled = true;
+            recordButton.disabled = true;
+            stopButton.disabled = true;
+            nextButton.disabled = true;
+            reviewDisplay.classList.add('hidden');
+            await getFullReview();
+        }
+
+        // 初期質問の取得
+        async function getInitialQuestion() {
+            try {
+                const url = `${INTERVIEW_API_BASE_URL}/`;
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                currentQuestion = data.question;
+                questionDisplay.textContent = currentQuestion;
+                statusMessage.textContent = "準備完了です。録音ボタンを押して回答を開始してください。";
+                recordButton.disabled = false;
+            } catch (error) {
+                console.error('Error fetching initial question:', error);
+                statusMessage.textContent = "質問の取得に失敗しました。URLを確認するか、しばらくしてからページを再読み込みしてください。";
+            }
+        }
+
+        // 音声認識APIへの送信
+        async function transcribeAudio(audioBlob) {
+            try {
+                statusMessage.textContent = "回答を認識中...";
+                const formData = new FormData();
+                formData.append('file', audioBlob, 'audio.webm');
+                
+                const response = await fetch(`${STT_API_BASE_URL}/v1/transcribe`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`音声認識APIエラー: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                const transcribedText = data.text_clean || "認識できませんでした。";
+                answerTextArea.textContent = transcribedText;
+                
+                conversationHistory.push({
+                    type: "question",
+                    text: currentQuestion
+                });
+                conversationHistory.push({
+                    type: "answer",
+                    text: transcribedText
+                });
+
+                statusMessage.textContent = "回答の認識が完了しました。";
+                nextButton.disabled = false;
+            } catch (error) {
+                console.error('Error transcribing audio:', error);
+                statusMessage.textContent = `エラーが発生しました: ${error.message}`;
+            }
+        }
+
+        // 次の質問を生成する
+        async function submitAnswer() {
+            try {
+                nextButton.disabled = true;
+                statusMessage.textContent = "次の質問と添削結果を生成中...";
+
+                const answerText = answerTextArea.textContent;
+                if (!answerText) {
+                    statusMessage.textContent = "回答が空です。";
+                    nextButton.disabled = false;
+                    return;
+                }
+
+                const response = await fetch(`${INTERVIEW_API_BASE_URL}/generate_next_question`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_answer: answerText,
+                        current_question: currentQuestion
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`質問生成APIエラー: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                currentQuestion = data.next_question;
+                questionDisplay.textContent = currentQuestion;
+                
+                if (data.review) {
+                    reviewDisplay.classList.remove('hidden');
+                    reviewContent.textContent = data.review;
+                } else {
+                    reviewDisplay.classList.add('hidden');
+                }
+                
+                answerTextArea.textContent = "";
+                statusMessage.textContent = "準備完了です。録音ボタンを押して次の回答を開始してください。";
+                recordButton.disabled = false;
+                nextButton.disabled = true;
+            } catch (error) {
+                console.error('Error generating next question:', error);
+                statusMessage.textContent = `エラーが発生しました: ${error.message}`;
+            }
+        }
+
+        // 全体の結果を取得して表示
+        async function getFullReview() {
+            try {
+                statusMessage.textContent = "全体のレビューを生成中...";
+                
+                const response = await fetch(`${INTERVIEW_API_BASE_URL}/get_full_review`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        conversation_history: conversationHistory
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`全体レビューAPIエラー: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                fullReviewContent.textContent = data.full_review;
+                fullReviewDisplay.classList.remove('hidden');
+                interviewControls.classList.add('hidden'); // 個別のレビューを非表示にする
+                statusMessage.textContent = "面接のレビューが完了しました。";
+            } catch (error) {
+                console.error('Error getting full review:', error);
+                statusMessage.textContent = `エラーが発生しました: ${error.message}`;
+            }
+        }
+
+        // マイクアクセスと録音の開始/停止
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: true,
+                    video: false
+                });
+                
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { 'type' : 'audio/webm' });
+                    transcribeAudio(audioBlob);
+                    stream.getTracks().forEach(track => track.stop());
+                };
+                
+                mediaRecorder.start();
+                isRecording = true;
+                recordButton.classList.add('hidden');
+                stopButtonContainer.classList.remove('hidden');
+                nextButton.disabled = true;
+                statusMessage.textContent = "録音中...";
+            } catch (error) {
+                console.error('マイクアクセスエラー:', error);
+                statusMessage.textContent = `マイクにアクセスできませんでした。別のアプリが使用していないか確認してください。`;
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                recordButton.classList.remove('hidden');
+                stopButtonContainer.classList.add('hidden');
+                statusMessage.textContent = "録音を停止しました。";
+            }
+        }
+
+        // イベントリスナー
+        startInterviewButton.addEventListener('click', startInterview);
+        endInterviewButton.addEventListener('click', endInterview);
+        recordButton.addEventListener('click', startRecording);
+        stopButton.addEventListener('click', stopRecording);
+        nextButton.addEventListener('click', submitAnswer);
+
+    </script>
+</body>
+</html>
