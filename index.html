@@ -104,6 +104,18 @@
         let isRecording = false;
         let conversationHistory = [];
 
+        // API URLを再確認
+        const API_URL_CONFIRMED = {
+            interview: "https://stt-api-dev-002-bxhfdnb9guczhubp.eastasia-01.azurewebsites.net",
+            stt: "https://stt-api-dev-001.azurewebsites.net"
+        };
+        
+        // エラーメッセージの表示を統一するヘルパー関数
+        function displayError(message) {
+            statusMessage.textContent = `エラーが発生しました: ${message}`;
+            console.error(message);
+        }
+
         // 面接開始ボタンの処理
         async function startInterview() {
             startInterviewButton.disabled = true;
@@ -128,7 +140,7 @@
         // 初期質問の取得
         async function getInitialQuestion() {
             try {
-                const url = `${INTERVIEW_API_BASE_URL}/`;
+                const url = `${API_URL_CONFIRMED.interview}/`;
                 const response = await fetch(url);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -139,8 +151,7 @@
                 statusMessage.textContent = "準備完了です。録音ボタンを押して回答を開始してください。";
                 recordButton.disabled = false;
             } catch (error) {
-                console.error('Error fetching initial question:', error);
-                statusMessage.textContent = "質問の取得に失敗しました。URLを確認するか、しばらくしてからページを再読み込みしてください。";
+                displayError(`質問の取得に失敗しました。URLを確認するか、しばらくしてからページを再読み込みしてください。`);
             }
         }
 
@@ -151,7 +162,7 @@
                 const formData = new FormData();
                 formData.append('file', audioBlob, 'audio.webm');
                 
-                const response = await fetch(`${STT_API_BASE_URL}/v1/transcribe`, {
+                const response = await fetch(`${API_URL_CONFIRMED.stt}/v1/transcribe`, {
                     method: 'POST',
                     body: formData
                 });
@@ -176,8 +187,7 @@
                 statusMessage.textContent = "回答の認識が完了しました。";
                 nextButton.disabled = false;
             } catch (error) {
-                console.error('Error transcribing audio:', error);
-                statusMessage.textContent = `エラーが発生しました: ${error.message}`;
+                displayError(`Error transcribing audio: ${error.message}`);
             }
         }
 
@@ -194,7 +204,7 @@
                     return;
                 }
 
-                const response = await fetch(`${INTERVIEW_API_BASE_URL}/generate_next_question`, {
+                const response = await fetch(`${API_URL_CONFIRMED.interview}/generate_next_question`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -204,7 +214,8 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error(`質問生成APIエラー: ${response.statusText}`);
+                    const errorData = await response.json();
+                    throw new Error(`質問生成APIエラー: ${response.statusText} - ${errorData.detail || '不明なエラー'}`);
                 }
 
                 const data = await response.json();
@@ -224,8 +235,7 @@
                 recordButton.disabled = false;
                 nextButton.disabled = true;
             } catch (error) {
-                console.error('Error generating next question:', error);
-                statusMessage.textContent = `エラーが発生しました: ${error.message}`;
+                displayError(`Error generating next question: ${error.message}`);
             }
         }
 
@@ -234,7 +244,7 @@
             try {
                 statusMessage.textContent = "全体のレビューを生成中...";
                 
-                const response = await fetch(`${INTERVIEW_API_BASE_URL}/get_full_review`, {
+                const response = await fetch(`${API_URL_CONFIRMED.interview}/get_full_review`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -243,7 +253,8 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error(`全体レビューAPIエラー: ${response.statusText}`);
+                    const errorData = await response.json();
+                    throw new Error(`全体レビューAPIエラー: ${response.statusText} - ${errorData.detail || '不明なエラー'}`);
                 }
 
                 const data = await response.json();
@@ -253,8 +264,7 @@
                 interviewControls.classList.add('hidden'); // 個別のレビューを非表示にする
                 statusMessage.textContent = "面接のレビューが完了しました。";
             } catch (error) {
-                console.error('Error getting full review:', error);
-                statusMessage.textContent = `エラーが発生しました: ${error.message}`;
+                displayError(`Error getting full review: ${error.message}`);
             }
         }
 
@@ -286,8 +296,7 @@
                 nextButton.disabled = true;
                 statusMessage.textContent = "録音中...";
             } catch (error) {
-                console.error('マイクアクセスエラー:', error);
-                statusMessage.textContent = `マイクにアクセスできませんでした。別のアプリが使用していないか確認してください。`;
+                displayError(`マイクにアクセスできませんでした。別のアプリが使用していないか確認してください。`);
             }
         }
 
