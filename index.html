@@ -6,6 +6,7 @@
 3. 音声認識APIからのテキストを、質問生成APIに送信する。
 4. 質問生成APIから返された次の質問を表示する。
 5. 面接終了時に、全体の会話の全文と総合レビューを表示する。
+6. 全体の会話履歴（質問と回答のペア）を確認する。
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -71,11 +72,25 @@
             <h3 class="text-lg font-bold text-gray-800 mb-2">全体の会話とレビュー</h3>
             <div id="full-review-content" class="text-gray-700 whitespace-pre-wrap"></div>
             <div class="flex justify-center space-x-4 mt-4">
+                <button id="view-history-button" class="px-6 py-3 rounded-full bg-gray-500 text-white font-bold hover:bg-gray-600 transition-colors shadow-md">
+                    全体の会話を確認
+                </button>
                 <button id="full-review-start-button" class="px-6 py-3 rounded-full bg-blue-500 text-white font-bold hover:bg-blue-600 transition-colors shadow-md">
                     面接開始
                 </button>
                 <button id="full-review-end-button" class="px-6 py-3 rounded-full bg-gray-500 text-white font-bold hover:bg-gray-600 transition-colors shadow-md">
                     面接終了
+                </button>
+            </div>
+        </div>
+
+        <!-- 会話履歴表示エリア -->
+        <div id="conversation-history-display" class="bg-gray-100 p-4 mt-6 hidden">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 text-center">会話履歴</h3>
+            <div id="history-content"></div>
+            <div class="flex justify-center mt-4">
+                <button id="back-to-review-button" class="px-6 py-3 rounded-full bg-blue-500 text-white font-bold hover:bg-blue-600 transition-colors shadow-md">
+                    レビューに戻る
                 </button>
             </div>
         </div>
@@ -98,6 +113,10 @@
         const statusMessage = document.getElementById("status-message");
         const fullReviewDisplay = document.getElementById("full-review-display");
         const fullReviewContent = document.getElementById("full-review-content");
+        const viewHistoryButton = document.getElementById("view-history-button");
+        const conversationHistoryDisplay = document.getElementById("conversation-history-display");
+        const historyContent = document.getElementById("history-content");
+        const backToReviewButton = document.getElementById("back-to-review-button");
         const fullReviewStartButton = document.getElementById("full-review-start-button");
         const fullReviewEndButton = document.getElementById("full-review-end-button");
 
@@ -127,6 +146,7 @@
             interviewControls.classList.add('hidden');
             questionDisplay.classList.add('hidden');
             fullReviewDisplay.classList.add('hidden');
+            conversationHistoryDisplay.classList.add('hidden');
         }
 
         // 面接開始ボタンの処理
@@ -275,6 +295,37 @@
             }
         }
 
+        // 会話履歴を表示する
+        function showConversationHistory() {
+            fullReviewDisplay.classList.add('hidden');
+            conversationHistoryDisplay.classList.remove('hidden');
+            historyContent.innerHTML = "";
+
+            let questionCount = 1;
+            for (let i = 0; i < conversationHistory.length; i += 2) {
+                const questionObj = conversationHistory[i];
+                const answerObj = conversationHistory[i + 1];
+
+                if (questionObj && questionObj.type === "question" && answerObj && answerObj.type === "answer") {
+                    const historyItem = document.createElement('div');
+                    historyItem.className = 'mb-6 p-4 rounded-lg bg-gray-50 border border-gray-200';
+                    
+                    historyItem.innerHTML = `
+                        <div class="mb-3">
+                            <h4 class="text-md font-semibold text-gray-700">質問 ${questionCount}:</h4>
+                            <p class="mt-1 text-gray-600 break-words whitespace-pre-wrap">${questionObj.text}</p>
+                        </div>
+                        <div>
+                            <h4 class="text-md font-semibold text-gray-700">回答 ${questionCount}:</h4>
+                            <p class="mt-1 text-gray-600 break-words whitespace-pre-wrap">${answerObj.text}</p>
+                        </div>
+                    `;
+                    historyContent.appendChild(historyItem);
+                    questionCount++;
+                }
+            }
+        }
+
         // マイクアクセスと録音の開始/停止
         async function startRecording() {
             try {
@@ -325,6 +376,11 @@
         nextButton.addEventListener('click', submitAnswer);
         fullReviewStartButton.addEventListener('click', startInterview);
         fullReviewEndButton.addEventListener('click', resetUI);
+        viewHistoryButton.addEventListener('click', showConversationHistory);
+        backToReviewButton.addEventListener('click', () => {
+            conversationHistoryDisplay.classList.add('hidden');
+            fullReviewDisplay.classList.remove('hidden');
+        });
 
     </script>
 </body>
