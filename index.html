@@ -24,7 +24,7 @@
         <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">面接練習アプリ</h1>
         
         <!-- 全体コントロールボタン -->
-        <div class="flex justify-center space-x-4 mb-6">
+        <div id="top-buttons" class="flex justify-center space-x-4 mb-6">
             <button id="start-interview-button" class="px-6 py-3 rounded-full bg-blue-500 text-white font-bold hover:bg-blue-600 transition-colors shadow-md">
                 面接開始
             </button>
@@ -76,6 +76,14 @@
         <div id="full-review-display" class="bg-blue-100 border border-blue-300 rounded-lg p-4 mt-6 hidden">
             <h3 class="text-lg font-bold text-gray-800 mb-2">全体の会話とレビュー</h3>
             <div id="full-review-content" class="text-gray-700 whitespace-pre-wrap"></div>
+            <div class="flex justify-center space-x-4 mt-4">
+                <button id="full-review-start-button" class="px-6 py-3 rounded-full bg-blue-500 text-white font-bold hover:bg-blue-600 transition-colors shadow-md">
+                    面接開始
+                </button>
+                <button id="full-review-end-button" class="px-6 py-3 rounded-full bg-gray-500 text-white font-bold hover:bg-gray-600 transition-colors shadow-md">
+                    面接終了
+                </button>
+            </div>
         </div>
     </div>
 
@@ -85,6 +93,7 @@
 
         const startInterviewButton = document.getElementById("start-interview-button");
         const endInterviewButton = document.getElementById("end-interview-button");
+        const topButtons = document.getElementById("top-buttons");
         const interviewControls = document.getElementById("interview-controls");
         const questionDisplay = document.getElementById("question-display");
         const recordButton = document.getElementById("record-button");
@@ -97,6 +106,9 @@
         const reviewContent = document.getElementById("review-content");
         const fullReviewDisplay = document.getElementById("full-review-display");
         const fullReviewContent = document.getElementById("full-review-content");
+        const fullReviewStartButton = document.getElementById("full-review-start-button");
+        const fullReviewEndButton = document.getElementById("full-review-end-button");
+
 
         let currentQuestion = "";
         let mediaRecorder;
@@ -116,10 +128,21 @@
             console.error(message);
         }
 
+        // UIの状態をリセットしてトップ画面に戻す
+        function resetUI() {
+            startInterviewButton.classList.remove('hidden');
+            endInterviewButton.classList.add('hidden');
+            interviewControls.classList.add('hidden');
+            questionDisplay.classList.add('hidden');
+            fullReviewDisplay.classList.add('hidden');
+            reviewDisplay.classList.add('hidden');
+        }
+
         // 面接開始ボタンの処理
         async function startInterview() {
-            startInterviewButton.disabled = true;
+            startInterviewButton.classList.add('hidden');
             endInterviewButton.classList.remove('hidden');
+            
             interviewControls.classList.remove('hidden');
             questionDisplay.classList.remove('hidden');
             fullReviewDisplay.classList.add('hidden');
@@ -134,6 +157,7 @@
             stopButton.disabled = true;
             nextButton.disabled = true;
             reviewDisplay.classList.add('hidden');
+            questionDisplay.classList.add('hidden'); // 最後の質問を非表示にする
             await getFullReview();
         }
 
@@ -316,6 +340,8 @@
         recordButton.addEventListener('click', startRecording);
         stopButton.addEventListener('click', stopRecording);
         nextButton.addEventListener('click', submitAnswer);
+        fullReviewStartButton.addEventListener('click', resetUI);
+        fullReviewEndButton.addEventListener('click', resetUI);
 
     </script>
 </body>
