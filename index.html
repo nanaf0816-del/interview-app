@@ -78,6 +78,9 @@
                 <button id="full-review-start-button" class="px-6 py-3 rounded-full bg-blue-500 text-white font-bold hover:bg-blue-600 transition-colors shadow-md">
                     面接開始
                 </button>
+                <button id="full-review-end-button" class="px-6 py-3 rounded-full bg-gray-500 text-white font-bold hover:bg-gray-600 transition-colors shadow-md">
+                    面接終了
+                </button>
             </div>
         </div>
 
@@ -89,7 +92,7 @@
                 <button id="back-to-review-button" class="px-6 py-3 rounded-full bg-blue-500 text-white font-bold hover:bg-blue-600 transition-colors shadow-md">
                     レビューに戻る
                 </button>
-                <button id="full-review-end-button" class="px-6 py-3 rounded-full bg-gray-500 text-white font-bold hover:bg-gray-600 transition-colors shadow-md">
+                <button id="history-end-button" class="px-6 py-3 rounded-full bg-gray-500 text-white font-bold hover:bg-gray-600 transition-colors shadow-md">
                     面接終了
                 </button>
             </div>
@@ -119,6 +122,7 @@
         const backToReviewButton = document.getElementById("back-to-review-button");
         const fullReviewStartButton = document.getElementById("full-review-start-button");
         const fullReviewEndButton = document.getElementById("full-review-end-button");
+        const historyEndButton = document.getElementById("history-end-button");
 
 
         let currentQuestion = "";
@@ -381,6 +385,7 @@
             conversationHistoryDisplay.classList.add('hidden');
             fullReviewDisplay.classList.remove('hidden');
         });
+        historyEndButton.addEventListener('click', resetUI);
 
     </script>
 </body>
