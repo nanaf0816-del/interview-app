@@ -24,23 +24,20 @@
     <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl">
         <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">面接練習アプリ</h1>
         
-        <!-- 全体コントロールボタン -->
-        <div id="top-buttons" class="flex justify-center space-x-4 mb-6">
+        <!-- 面接開始ボタンのコンテナ -->
+        <div id="start-screen-controls" class="flex justify-center mb-6">
             <button id="start-interview-button" class="px-6 py-3 rounded-full bg-blue-500 text-white font-bold hover:bg-blue-600 transition-colors shadow-md">
                 面接開始
             </button>
-            <button id="end-interview-button" class="px-6 py-3 rounded-full bg-gray-500 text-white font-bold hover:bg-gray-600 transition-colors shadow-md hidden">
-                面接終了
-            </button>
         </div>
 
-        <!-- 質問表示エリア -->
-        <div id="question-display" class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-blue-800 hidden">
-            質問を読み込み中...
-        </div>
-
-        <!-- 録音・回答エリア -->
+        <!-- 面接中コントロール (面接開始後に表示) -->
         <div id="interview-controls" class="hidden">
+            <!-- 質問表示エリア -->
+            <div id="question-display" class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-blue-800">
+                質問を読み込み中...
+            </div>
+            
             <div class="mb-4">
                 <label class="block text-gray-700 font-semibold mb-2">あなたの回答</label>
                 <div id="status-message" class="text-sm text-gray-500 mb-2"></div>
@@ -59,10 +56,13 @@
                 </div>
             </div>
 
-            <!-- 次へボタン -->
-            <div class="flex justify-center">
+            <!-- 次へボタンと面接終了ボタン -->
+            <div class="flex justify-center space-x-4">
                 <button id="next-button" class="px-8 py-3 rounded-full bg-green-500 text-white font-bold hover:bg-green-600 transition-colors shadow-md disabled:bg-green-300" disabled>
                     次の質問を生成
+                </button>
+                <button id="end-interview-button" class="px-8 py-3 rounded-full bg-gray-500 text-white font-bold hover:bg-gray-600 transition-colors shadow-md">
+                    面接終了
                 </button>
             </div>
         </div>
@@ -104,14 +104,13 @@
         const STT_API_BASE_URL = "https://stt-api-dev-001.azurewebsites.net";
 
         const startInterviewButton = document.getElementById("start-interview-button");
-        const endInterviewButton = document.getElementById("end-interview-button");
-        const topButtons = document.getElementById("top-buttons");
         const interviewControls = document.getElementById("interview-controls");
         const questionDisplay = document.getElementById("question-display");
         const recordButton = document.getElementById("record-button");
         const stopButtonContainer = document.getElementById("stop-button-container");
         const stopButton = document.getElementById("stop-button");
         const nextButton = document.getElementById("next-button");
+        const endInterviewButton = document.getElementById("end-interview-button"); // 面接中の終了ボタン
         const answerTextArea = document.getElementById("answer-text-area");
         const statusMessage = document.getElementById("status-message");
         const fullReviewDisplay = document.getElementById("full-review-display");
@@ -123,6 +122,7 @@
         const fullReviewStartButton = document.getElementById("full-review-start-button");
         const fullReviewEndButton = document.getElementById("full-review-end-button");
         const historyEndButton = document.getElementById("history-end-button");
+        const startScreenControls = document.getElementById("start-screen-controls");
 
 
         let currentQuestion = "";
@@ -145,21 +145,16 @@
 
         // UIの状態をリセットしてトップ画面に戻す
         function resetUI() {
-            startInterviewButton.classList.remove('hidden');
-            endInterviewButton.classList.add('hidden');
+            startScreenControls.classList.remove('hidden');
             interviewControls.classList.add('hidden');
-            questionDisplay.classList.add('hidden');
             fullReviewDisplay.classList.add('hidden');
             conversationHistoryDisplay.classList.add('hidden');
         }
 
         // 面接開始ボタンの処理
         async function startInterview() {
-            startInterviewButton.classList.add('hidden');
-            endInterviewButton.classList.remove('hidden');
-            
+            startScreenControls.classList.add('hidden');
             interviewControls.classList.remove('hidden');
-            questionDisplay.classList.remove('hidden');
             fullReviewDisplay.classList.add('hidden');
             conversationHistory = [];
             getInitialQuestion();
@@ -171,6 +166,12 @@
             recordButton.disabled = true;
             stopButton.disabled = true;
             nextButton.disabled = true;
+            
+            // 録音中であれば停止する
+            if (isRecording) {
+                stopRecording();
+            }
+            
             questionDisplay.classList.add('hidden'); // 最後の質問を非表示にする
             await getFullReview();
         }
@@ -186,6 +187,7 @@
                 const data = await response.json();
                 currentQuestion = data.question;
                 questionDisplay.textContent = currentQuestion;
+                questionDisplay.classList.remove('hidden');
                 statusMessage.textContent = "準備完了です。録音ボタンを押して回答を開始してください。";
                 recordButton.disabled = false;
             } catch (error) {
