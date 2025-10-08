@@ -1,12 +1,11 @@
 <!--
-面接練習アプリのクライアントサイドUIとAPI連携
-このファイルは、以下の機能を提供いたします。
-1. 面接の開始・終了を制御する。
-2. マイクから音声を録音し、音声認識APIに送信する。
-3. 音声認識APIからのテキストを、質問生成APIに送信する。
-4. 質問生成APIから返された次の質問を表示する。
-5. 面接終了時に、全体の会話の全文と総合レビューを表示する。
-6. 全体の会話履歴（質問と回答のペア）を確認する。
+面接練習アプリのクライアントサイドUIとAPI連携 (統合版)
+機能:
+1. 画面を HOME / SETTINGS / INTERVIEW / FULL_REVIEW / HISTORY の5つのビューに分割し、状態管理を行う。
+2. SETTINGSビューで企業情報とセキュリティ警告を表示する。
+3. マイクから音声を録音し、音声認識APIに送信する。
+4. 音声認識結果と企業情報を、質問生成APIに送信する。
+5. 面接終了時に、全体の会話履歴と総合レビューを表示する。
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -18,26 +17,81 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
     <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl">
         <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">面接練習アプリ</h1>
         
-        <!-- 面接開始ボタンのコンテナ -->
-        <div id="start-screen-controls" class="flex justify-center mb-6">
-            <button id="start-interview-button" class="px-6 py-3 rounded-full bg-blue-500 text-white font-bold hover:bg-blue-600 transition-colors shadow-md">
-                面接開始
-            </button>
+        <!-- ======================================================= -->
+        <!-- 1. ホームビュー (HOME_VIEW) -->
+        <!-- ======================================================= -->
+        <div id="home-view" class="view">
+            <div class="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4 mb-3">
+                <button id="start-interview-button" class="px-8 py-3 rounded-full bg-green-600 text-white font-bold hover:bg-green-700 transition-colors shadow-lg" disabled>
+                    面接開始
+                </button>
+                <button id="open-settings-button" class="px-8 py-3 rounded-full bg-gray-500 text-white font-bold hover:bg-gray-600 transition-colors shadow-lg">
+                    面接設定
+                </button>
+            </div>
+            
+            <p id="setting-required-message" class="text-center text-sm text-red-500 opacity-0 transition-opacity">
+                面接を開始するには、まず「面接設定」で情報を入力してください。
+            </p>
         </div>
 
-        <!-- 面接中コントロール (面接開始後に表示) -->
-        <div id="interview-controls" class="hidden">
+        <!-- ======================================================= -->
+        <!-- 2. 面接設定ビュー (SETTINGS_VIEW) -->
+        <!-- ======================================================= -->
+        <div id="settings-view" class="view hidden">
+            <h2 class="text-2xl font-bold text-gray-800 border-b pb-2 mb-4">面接設定</h2>
+            
+            <!-- セキュリティに関する注意書き -->
+            <div class="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg mb-4 text-sm font-medium">
+                🚨 **セキュリティに関する重要なお願い**
+                <br>このアプリは練習用です。**氏名、住所、電話番号、機密性の高い企業情報（未公開情報など）は絶対に入力しないでください。**
+                入力された情報はAIの質問生成にのみ利用され、保存されません。
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label for="company-name" class="block text-gray-700 font-semibold mb-1">企業名 <span class="text-xs text-gray-500">(推奨)</span></label>
+                    <input type="text" id="company-name" placeholder="例: Google合同会社" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-shadow">
+                </div>
+                <div>
+                    <label for="job-position" class="block text-gray-700 font-semibold mb-1">応募ポジション <span class="text-xs text-gray-500">(推奨)</span></label>
+                    <input type="text" id="job-position" placeholder="例: シニアWebエンジニア" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-shadow">
+                </div>
+                <div>
+                    <label for="business-details" class="block text-gray-700 font-semibold mb-1">事業内容・企業理念 <span class="text-xs text-gray-500">(任意)</span></label>
+                    <textarea id="business-details" rows="3" placeholder="例: 検索エンジン、クラウドサービス、AI開発。理念: 世界中の情報を整理し、アクセス可能にすること。" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-shadow"></textarea>
+                </div>
+                <div>
+                    <label for="job-duties" class="block text-gray-700 font-semibold mb-1">想定される業務内容 <span class="text-xs text-gray-500">(任意)</span></label>
+                    <textarea id="job-duties" rows="3" placeholder="例: 新規プロダクトのフロントエンド開発（React）。CI/CDパイプラインの構築と運用。" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-shadow"></textarea>
+                    <div class="text-sm text-gray-500 mt-1">これらの情報がAIによる質問生成に利用されます。</div>
+                </div>
+            </div>
+
+            <div class="flex justify-center mt-6">
+                <button id="save-settings-button" class="px-8 py-3 rounded-full bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg">
+                    設定完了
+                </button>
+            </div>
+        </div>
+
+        <!-- ======================================================= -->
+        <!-- 3. 面接ビュー (INTERVIEW_VIEW) -->
+        <!-- ======================================================= -->
+        <div id="interview-view" class="view hidden">
             <!-- 質問表示エリア -->
             <div id="question-display" class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-blue-800">
                 質問を読み込み中...
             </div>
-            
+
+            <!-- 録音・回答エリア -->
             <div class="mb-4">
                 <label class="block text-gray-700 font-semibold mb-2">あなたの回答</label>
                 <div id="status-message" class="text-sm text-gray-500 mb-2"></div>
@@ -67,131 +121,257 @@
             </div>
         </div>
 
-        <!-- 全体結果表示エリア -->
-        <div id="full-review-display" class="bg-blue-100 border border-blue-300 rounded-lg p-4 mt-6 hidden">
-            <h3 class="text-lg font-bold text-gray-800 mb-2">全体の会話とレビュー</h3>
-            <div id="full-review-content" class="text-gray-700 whitespace-pre-wrap"></div>
-            <div class="flex justify-center space-x-4 mt-4">
-                <button id="view-history-button" class="px-6 py-3 rounded-full bg-gray-500 text-white font-bold hover:bg-gray-600 transition-colors shadow-md">
-                    全体の会話を確認
-                </button>
-                <button id="full-review-start-button" class="px-6 py-3 rounded-full bg-blue-500 text-white font-bold hover:bg-blue-600 transition-colors shadow-md">
-                    面接開始
-                </button>
-                <button id="full-review-end-button" class="px-6 py-3 rounded-full bg-gray-500 text-white font-bold hover:bg-gray-600 transition-colors shadow-md">
-                    面接終了
-                </button>
+        <!-- ======================================================= -->
+        <!-- 4. 全体レビュービュー (FULL_REVIEW_VIEW) -->
+        <!-- ======================================================= -->
+        <div id="full-review-view" class="view hidden">
+            <div class="bg-blue-100 border border-blue-300 rounded-lg p-4 mt-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-2">全体の会話とレビュー</h3>
+                <div id="full-review-content" class="text-gray-700 whitespace-pre-wrap min-h-[100px] bg-white p-3 rounded-lg border"></div>
+                
+                <div class="flex justify-center space-x-4 mt-4">
+                    <button id="view-history-button" class="px-6 py-3 rounded-full bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-md">
+                        全体の会話を確認
+                    </button>
+                    <button id="full-review-start-button" class="px-6 py-3 rounded-full bg-green-500 text-white font-bold hover:bg-green-600 transition-colors shadow-md">
+                        再スタート
+                    </button>
+                    <button id="full-review-end-button" class="px-6 py-3 rounded-full bg-gray-500 text-white font-bold hover:bg-gray-600 transition-colors shadow-md">
+                        ホームに戻る
+                    </button>
+                </div>
             </div>
         </div>
 
-        <!-- 会話履歴表示エリア -->
-        <div id="conversation-history-display" class="bg-gray-100 p-4 mt-6 hidden">
+        <!-- ======================================================= -->
+        <!-- 5. 会話履歴ビュー (HISTORY_VIEW) -->
+        <!-- ======================================================= -->
+        <div id="history-view" class="view hidden">
             <h3 class="text-lg font-bold text-gray-800 mb-4 text-center">会話履歴</h3>
-            <div id="history-content"></div>
+            <div id="history-content">
+                <!-- 会話履歴がここに動的に挿入される -->
+            </div>
+            
             <div class="flex justify-center space-x-4 mt-4">
-                <button id="back-to-review-button" class="px-6 py-3 rounded-full bg-blue-500 text-white font-bold hover:bg-blue-600 transition-colors shadow-md">
+                <button id="back-to-review-button" class="px-6 py-3 rounded-full bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-md">
                     レビューに戻る
                 </button>
                 <button id="history-end-button" class="px-6 py-3 rounded-full bg-gray-500 text-white font-bold hover:bg-gray-600 transition-colors shadow-md">
-                    面接終了
+                    ホームに戻る
                 </button>
             </div>
         </div>
     </div>
 
     <script>
+        // =======================================================
+        // 定数と状態管理
+        // =======================================================
+        // 既存のURLを引き継ぎ
         const INTERVIEW_API_BASE_URL = "https://stt-api-dev-002-bxhfdnb9guczhubp.eastasia-01.azurewebsites.net";
         const STT_API_BASE_URL = "https://stt-api-dev-001.azurewebsites.net";
+        const TRANSCRIBE_URL = `${STT_API_BASE_URL}/v1/transcribe`;
 
-        const startInterviewButton = document.getElementById("start-interview-button");
-        const interviewControls = document.getElementById("interview-controls");
-        const questionDisplay = document.getElementById("question-display");
-        const recordButton = document.getElementById("record-button");
-        const stopButtonContainer = document.getElementById("stop-button-container");
-        const stopButton = document.getElementById("stop-button");
-        const nextButton = document.getElementById("next-button");
-        const endInterviewButton = document.getElementById("end-interview-button"); // 面接中の終了ボタン
-        const answerTextArea = document.getElementById("answer-text-area");
-        const statusMessage = document.getElementById("status-message");
-        const fullReviewDisplay = document.getElementById("full-review-display");
-        const fullReviewContent = document.getElementById("full-review-content");
-        const viewHistoryButton = document.getElementById("view-history-button");
-        const conversationHistoryDisplay = document.getElementById("conversation-history-display");
-        const historyContent = document.getElementById("history-content");
-        const backToReviewButton = document.getElementById("back-to-review-button");
-        const fullReviewStartButton = document.getElementById("full-review-start-button");
-        const fullReviewEndButton = document.getElementById("full-review-end-button");
-        const historyEndButton = document.getElementById("history-end-button");
-        const startScreenControls = document.getElementById("start-screen-controls");
-
+        const VIEW_STATE = {
+            HOME: 'home-view',
+            SETTINGS: 'settings-view',
+            INTERVIEW: 'interview-view',
+            FULL_REVIEW: 'full-review-view',
+            HISTORY: 'history-view'
+        };
 
         let currentQuestion = "";
         let mediaRecorder;
         let audioChunks = [];
         let isRecording = false;
-        let conversationHistory = [];
+        let conversationHistory = []; // 質問と回答の履歴
 
-        // API URLを再確認
-        const API_URL_CONFIRMED = {
-            interview: "https://stt-api-dev-002-bxhfdnb9guczhubp.eastasia-01.azurewebsites.net",
-            stt: "https://stt-api-dev-001.azurewebsites.net"
+        // 企業情報の設定をグローバルに保持
+        let companySetting = {
+            name: "",
+            position: "",
+            business: "",
+            duties: ""
         };
         
-        // エラーメッセージの表示を統一するヘルパー関数
-        function displayError(message) {
-            statusMessage.textContent = `エラーが発生しました: ${message}`;
-            console.error(message);
-        }
+        // =======================================================
+        // UI要素
+        // =======================================================
+        // ビューコンテナ
+        const views = {
+            [VIEW_STATE.HOME]: document.getElementById(VIEW_STATE.HOME),
+            [VIEW_STATE.SETTINGS]: document.getElementById(VIEW_STATE.SETTINGS),
+            [VIEW_STATE.INTERVIEW]: document.getElementById(VIEW_STATE.INTERVIEW),
+            [VIEW_STATE.FULL_REVIEW]: document.getElementById(VIEW_STATE.FULL_REVIEW),
+            [VIEW_STATE.HISTORY]: document.getElementById(VIEW_STATE.HISTORY),
+        };
+        
+        // ホームビューの要素
+        const startInterviewButton = document.getElementById("start-interview-button");
+        const openSettingsButton = document.getElementById("open-settings-button");
+        const settingRequiredMessage = document.getElementById("setting-required-message");
 
-        // UIの状態をリセットしてトップ画面に戻す
-        function resetUI() {
-            startScreenControls.classList.remove('hidden');
-            interviewControls.classList.add('hidden');
-            fullReviewDisplay.classList.add('hidden');
-            conversationHistoryDisplay.classList.add('hidden');
-        }
+        // 設定ビューの要素
+        const companyNameInput = document.getElementById("company-name");
+        const businessDetailsTextarea = document.getElementById("business-details");
+        const jobPositionInput = document.getElementById("job-position");
+        const jobDutiesTextarea = document.getElementById("job-duties");
+        const saveSettingsButton = document.getElementById("save-settings-button");
+        
+        // 面接ビューの要素
+        const questionDisplay = document.getElementById("question-display");
+        const recordButton = document.getElementById("record-button");
+        const stopButtonContainer = document.getElementById("stop-button-container");
+        const stopButton = document.getElementById("stop-button");
+        const nextButton = document.getElementById("next-button");
+        const endInterviewButton = document.getElementById("end-interview-button");
+        const answerTextArea = document.getElementById("answer-text-area");
+        const statusMessage = document.getElementById("status-message");
 
-        // 面接開始ボタンの処理
-        async function startInterview() {
-            startScreenControls.classList.add('hidden');
-            interviewControls.classList.remove('hidden');
-            fullReviewDisplay.classList.add('hidden');
-            conversationHistory = [];
-            getInitialQuestion();
-        }
+        // 全体レビュービューの要素
+        const fullReviewContent = document.getElementById("full-review-content");
+        const viewHistoryButton = document.getElementById("view-history-button");
+        const fullReviewStartButton = document.getElementById("full-review-start-button");
+        const fullReviewEndButton = document.getElementById("full-review-end-button");
 
-        // 面接終了ボタンの処理
-        async function endInterview() {
-            endInterviewButton.disabled = true;
-            recordButton.disabled = true;
-            stopButton.disabled = true;
-            nextButton.disabled = true;
+        // 履歴ビューの要素
+        const historyContent = document.getElementById("history-content");
+        const backToReviewButton = document.getElementById("back-to-review-button");
+        const historyEndButton = document.getElementById("history-end-button");
+
+        // =======================================================
+        // 画面切り替えと設定管理
+        // =======================================================
+        
+        /**
+         * 画面を切り替える
+         * @param {string} viewName - VIEW_STATEのキー
+         */
+        function switchView(viewName) {
+            Object.values(views).forEach(view => {
+                view.classList.add('hidden');
+            });
+            views[viewName].classList.remove('hidden');
             
-            // 録音中であれば停止する
-            if (isRecording) {
-                stopRecording();
+            if (viewName === VIEW_STATE.HOME) {
+                updateHomeDisplay();
+            } else if (viewName === VIEW_STATE.SETTINGS) {
+                loadSettingsToForm();
+            } else if (viewName === VIEW_STATE.INTERVIEW) {
+                // 面接開始時の初期化
+                currentQuestion = ""; 
+                questionDisplay.textContent = "面接官が考えています...";
+                answerTextArea.textContent = "";
+                nextButton.disabled = true;
+                recordButton.disabled = true;
+                endInterviewButton.disabled = false;
+            }
+        }
+        
+        /**
+         * 保持している設定をフォームにロード
+         */
+        function loadSettingsToForm() {
+            companyNameInput.value = companySetting.name;
+            jobPositionInput.value = companySetting.position;
+            businessDetailsTextarea.value = companySetting.business;
+            jobDutiesTextarea.value = companySetting.duties;
+        }
+
+        /**
+         * フォームから設定を保存し、ホームに戻る
+         */
+        function saveSettings() {
+            companySetting.name = companyNameInput.value.trim();
+            companySetting.position = jobPositionInput.value.trim();
+            companySetting.business = businessDetailsTextarea.value.trim();
+            companySetting.duties = jobDutiesTextarea.value.trim();
+            switchView(VIEW_STATE.HOME);
+        }
+        
+        /**
+         * ホーム画面の表示を更新
+         */
+        function updateHomeDisplay() {
+            const info = getCompanyInfo();
+            // 企業名かポジションのいずれかがあれば面接開始を有効化
+            if (info) {
+                startInterviewButton.disabled = false;
+                settingRequiredMessage.classList.add('opacity-0');
+                settingRequiredMessage.textContent = "";
+
+            } else {
+                startInterviewButton.disabled = true;
+                settingRequiredMessage.classList.remove('opacity-0');
+                settingRequiredMessage.textContent = "面接を開始するには、まず「面接設定」で情報を入力してください。";
+            }
+        }
+        
+        /**
+         * 4つの入力欄から情報を取得し、整形して返すヘルパー関数
+         */
+        function getCompanyInfo() {
+            const { name, position, business, duties } = companySetting;
+            
+            // 必須項目チェック: 企業名かポジションのいずれかがあればOK
+            if (!name && !position) {
+                return "";
+            }
+
+            let info = "";
+            if (name) info += `企業名: ${name}\n`;
+            if (position) info += `応募ポジション: ${position}\n`;
+            if (business) info += `事業内容・企業理念: ${business}\n`;
+            if (duties) info += `想定業務内容: ${duties}\n`;
+            
+            return info.trim();
+        }
+
+        // =======================================================
+        // 面接ロジック
+        // =======================================================
+
+        /**
+         * 面接開始ボタンが押されたときの処理 (ホーム画面から)
+         */
+        async function startInterviewFlow() {
+            if (!getCompanyInfo()) {
+                switchView(VIEW_STATE.SETTINGS);
+                return;
             }
             
-            questionDisplay.classList.add('hidden'); // 最後の質問を非表示にする
-            await getFullReview();
+            switchView(VIEW_STATE.INTERVIEW);
+            conversationHistory = []; // 新しい面接開始で履歴をリセット
+            await getInitialQuestion();
         }
 
-        // 初期質問の取得
+        // 初期質問の取得 (POSTメソッドに変更し、会社情報を送信)
         async function getInitialQuestion() {
             try {
-                const url = `${API_URL_CONFIRMED.interview}/`;
-                const response = await fetch(url);
+                const companyInfo = getCompanyInfo();
+                const url = `${INTERVIEW_API_BASE_URL}/`;
+                
+                statusMessage.textContent = "面接を開始しています...";
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ company_info: companyInfo })
+                });
+
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const data = await response.json();
+                
                 currentQuestion = data.question;
                 questionDisplay.textContent = currentQuestion;
-                questionDisplay.classList.remove('hidden');
                 statusMessage.textContent = "準備完了です。録音ボタンを押して回答を開始してください。";
                 recordButton.disabled = false;
             } catch (error) {
-                displayError(`質問の取得に失敗しました。URLを確認するか、しばらくしてからページを再読み込みしてください。`);
+                console.error('Error fetching initial question:', error);
+                statusMessage.textContent = "質問の取得に失敗しました。APIの状態を確認してください。";
+                recordButton.disabled = true;
             }
         }
 
@@ -202,7 +382,7 @@
                 const formData = new FormData();
                 formData.append('file', audioBlob, 'audio.webm');
                 
-                const response = await fetch(`${API_URL_CONFIRMED.stt}/v1/transcribe`, {
+                const response = await fetch(TRANSCRIBE_URL, {
                     method: 'POST',
                     body: formData
                 });
@@ -215,19 +395,16 @@
                 const transcribedText = data.text_clean || "認識できませんでした。";
                 answerTextArea.textContent = transcribedText;
                 
-                conversationHistory.push({
-                    type: "question",
-                    text: currentQuestion
-                });
-                conversationHistory.push({
-                    type: "answer",
-                    text: transcribedText
-                });
+                // 会話履歴に質問と回答を記録
+                conversationHistory.push({ type: "question", text: currentQuestion });
+                conversationHistory.push({ type: "answer", text: transcribedText });
 
                 statusMessage.textContent = "回答の認識が完了しました。";
                 nextButton.disabled = false;
+
             } catch (error) {
-                displayError(`Error transcribing audio: ${error.message}`);
+                console.error('Error transcribing audio:', error);
+                statusMessage.textContent = `エラーが発生しました: ${error.message}`;
             }
         }
 
@@ -235,49 +412,63 @@
         async function submitAnswer() {
             try {
                 nextButton.disabled = true;
+                recordButton.disabled = true;
                 statusMessage.textContent = "次の質問を生成中...";
 
                 const answerText = answerTextArea.textContent;
                 if (!answerText) {
                     statusMessage.textContent = "回答が空です。";
                     nextButton.disabled = false;
+                    recordButton.disabled = false;
                     return;
                 }
+                
+                const companyInfo = getCompanyInfo(); 
 
-                const response = await fetch(`${API_URL_CONFIRMED.interview}/generate_next_question`, {
+                const response = await fetch(`${INTERVIEW_API_BASE_URL}/generate_next_question`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         user_answer: answerText,
-                        current_question: currentQuestion
+                        current_question: currentQuestion,
+                        company_info: companyInfo // 企業情報を送信
                     })
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json();
+                    const errorData = await response.json().catch(() => ({detail: 'APIレスポンスの解析に失敗'}));
                     throw new Error(`質問生成APIエラー: ${response.statusText} - ${errorData.detail || '不明なエラー'}`);
                 }
 
                 const data = await response.json();
                 
+                if (data.is_error) {
+                    statusMessage.textContent = `エラーが発生しました: ${data.next_question}`;
+                }
+
+                // 次の質問を表示
                 currentQuestion = data.next_question;
                 questionDisplay.textContent = currentQuestion;
                 
+                // UIをリセットして次の回答を待機
                 answerTextArea.textContent = "";
                 statusMessage.textContent = "準備完了です。録音ボタンを押して次の回答を開始してください。";
                 recordButton.disabled = false;
                 nextButton.disabled = true;
+
             } catch (error) {
-                displayError(`Error generating next question: ${error.message}`);
+                console.error('Error generating next question:', error);
+                statusMessage.textContent = `エラーが発生しました: ${error.message}`;
             }
         }
 
-        // 全体の結果を取得して表示
+        // 全体の結果を取得して表示 (既存機能の統合)
         async function getFullReview() {
             try {
+                endInterviewButton.disabled = true;
                 statusMessage.textContent = "全体のレビューを生成中...";
                 
-                const response = await fetch(`${API_URL_CONFIRMED.interview}/get_full_review`, {
+                const response = await fetch(`${INTERVIEW_API_BASE_URL}/get_full_review`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -286,25 +477,26 @@
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json();
+                    const errorData = await response.json().catch(() => ({detail: 'APIレスポンスの解析に失敗'}));
                     throw new Error(`全体レビューAPIエラー: ${response.statusText} - ${errorData.detail || '不明なエラー'}`);
                 }
 
                 const data = await response.json();
                 
                 fullReviewContent.textContent = data.full_review;
-                fullReviewDisplay.classList.remove('hidden');
-                interviewControls.classList.add('hidden'); // 個別のレビューを非表示にする
+                switchView(VIEW_STATE.FULL_REVIEW); // 全体レビュービューに切り替え
                 statusMessage.textContent = "面接のレビューが完了しました。";
             } catch (error) {
-                displayError(`Error getting full review: ${error.message}`);
+                console.error('Error getting full review:', error);
+                fullReviewContent.textContent = `レビューの生成に失敗しました: ${error.message}`;
+                switchView(VIEW_STATE.FULL_REVIEW); 
+                statusMessage.textContent = "";
             }
         }
-
-        // 会話履歴を表示する
+        
+        // 会話履歴を表示する (既存機能の統合)
         function showConversationHistory() {
-            fullReviewDisplay.classList.add('hidden');
-            conversationHistoryDisplay.classList.remove('hidden');
+            switchView(VIEW_STATE.HISTORY);
             historyContent.innerHTML = "";
 
             let questionCount = 1;
@@ -332,7 +524,8 @@
             }
         }
 
-        // マイクアクセスと録音の開始/停止
+
+        // マイクアクセスと録音の開始/停止 (変更なし)
         async function startRecording() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -358,9 +551,11 @@
                 recordButton.classList.add('hidden');
                 stopButtonContainer.classList.remove('hidden');
                 nextButton.disabled = true;
+                endInterviewButton.disabled = true;
                 statusMessage.textContent = "録音中...";
             } catch (error) {
-                displayError(`マイクにアクセスできませんでした。別のアプリが使用していないか確認してください。`);
+                console.error('マイクアクセスエラー:', error);
+                statusMessage.textContent = `マイクにアクセスできませんでした。別のアプリが使用していないか確認してください。`;
             }
         }
 
@@ -370,24 +565,40 @@
                 isRecording = false;
                 recordButton.classList.remove('hidden');
                 stopButtonContainer.classList.add('hidden');
+                endInterviewButton.disabled = false;
                 statusMessage.textContent = "録音を停止しました。";
             }
         }
 
-        // イベントリスナー
-        startInterviewButton.addEventListener('click', startInterview);
-        endInterviewButton.addEventListener('click', endInterview);
+        // =======================================================
+        // イベントリスナーの登録
+        // =======================================================
+        
+        // HOMEビュー
+        startInterviewButton.addEventListener('click', startInterviewFlow);
+        openSettingsButton.addEventListener('click', () => switchView(VIEW_STATE.SETTINGS));
+        
+        // SETTINGSビュー
+        saveSettingsButton.addEventListener('click', saveSettings);
+        
+        // INTERVIEWビュー
         recordButton.addEventListener('click', startRecording);
         stopButton.addEventListener('click', stopRecording);
         nextButton.addEventListener('click', submitAnswer);
-        fullReviewStartButton.addEventListener('click', startInterview);
-        fullReviewEndButton.addEventListener('click', resetUI);
-        viewHistoryButton.addEventListener('click', showConversationHistory);
-        backToReviewButton.addEventListener('click', () => {
-            conversationHistoryDisplay.classList.add('hidden');
-            fullReviewDisplay.classList.remove('hidden');
-        });
-        historyEndButton.addEventListener('click', resetUI);
+        endInterviewButton.addEventListener('click', getFullReview); // 全体レビュー取得へ
+        
+        // FULL_REVIEWビュー
+        viewHistoryButton.addEventListener('click', showConversationHistory); // 履歴ビューへ
+        fullReviewStartButton.addEventListener('click', startInterviewFlow); // 再スタート
+        fullReviewEndButton.addEventListener('click', () => switchView(VIEW_STATE.HOME)); // ホームへ
+
+        // HISTORYビュー
+        backToReviewButton.addEventListener('click', () => switchView(VIEW_STATE.FULL_REVIEW)); // レビューに戻る
+        historyEndButton.addEventListener('click', () => switchView(VIEW_STATE.HOME)); // ホームへ
+
+        // 初期表示
+        switchView(VIEW_STATE.HOME);
+
     </script>
 </body>
 </html>
