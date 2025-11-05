@@ -1,10 +1,10 @@
 <!--
-面接練習アプリのクライアントサイドUIとAPI連携 (統合版)
+面接練習アプリのクライアントサイドUIとAPI連携 (統合版 + スキルシートアップロード機能)
 機能:
 1. 画面を HOME / SETTINGS / INTERVIEW / FULL_REVIEW / HISTORY の5つのビューに分割し、状態管理を行う。
-2. SETTINGSビューで企業情報とセキュリティ警告を表示する。
+2. SETTINGSビューで企業情報とスキルシートをアップロードする。
 3. マイクから音声を録音し、音声認識APIに送信する。
-4. 音声認識結果と企業情報を、質問生成APIに送信する。
+4. 音声認識結果と企業情報、スキルシート情報を質問生成APIに送信する。
 5. 面接終了時に、全体の会話履歴と総合レビューを表示する。
 -->
 <!DOCTYPE html>
@@ -53,6 +53,24 @@
                 🚨 **セキュリティに関する重要なお願い**
                 <br>このアプリは練習用です。**氏名、住所、電話番号、機密性の高い企業情報（未公開情報など）は絶対に入力しないでください。**
                 入力された情報はAIの質問生成にのみ利用され、保存されません。
+            </div>
+
+            <!-- ★新規追加: スキルシートアップロード欄 -->
+            <div class="bg-blue-50 border border-blue-300 rounded-lg p-4 mb-4">
+                <label class="block text-gray-800 font-semibold mb-2">
+                    📄 スキルシート (Excel) のアップロード 
+                    <span class="text-xs font-normal text-gray-600">(任意)</span>
+                </label>
+                <p class="text-sm text-gray-600 mb-3">
+                    スキルシートをアップロードすると、あなたの経歴や保有スキルに基づいた質問が生成されます。
+                </p>
+                <input 
+                    type="file" 
+                    id="skillsheet-input" 
+                    accept=".xlsx,.xls"
+                    class="block w-full text-sm text-gray-700 border border-gray-300 rounded-lg p-2 cursor-pointer bg-white hover:bg-gray-50 focus:outline-none"
+                >
+                <div id="skillsheet-status" class="mt-2 text-sm text-gray-600"></div>
             </div>
 
             <div class="space-y-4">
@@ -167,7 +185,6 @@
         // =======================================================
         // 定数と状態管理
         // =======================================================
-        // 既存のURLを引き継ぎ
         const INTERVIEW_API_BASE_URL = "https://stt-api-dev-002-bxhfdnb9guczhubp.eastasia-01.azurewebsites.net";
         const STT_API_BASE_URL = "https://stt-api-dev-001.azurewebsites.net";
         const TRANSCRIBE_URL = `${STT_API_BASE_URL}/v1/transcribe`;
@@ -193,11 +210,13 @@
             business: "",
             duties: ""
         };
+
+        // ★新規追加: スキルシート情報を保持
+        let hasSkillsheet = false; // スキルシートがアップロード済みかどうか
         
         // =======================================================
         // UI要素
         // =======================================================
-        // ビューコンテナ
         const views = {
             [VIEW_STATE.HOME]: document.getElementById(VIEW_STATE.HOME),
             [VIEW_STATE.SETTINGS]: document.getElementById(VIEW_STATE.SETTINGS),
@@ -217,6 +236,10 @@
         const jobPositionInput = document.getElementById("job-position");
         const jobDutiesTextarea = document.getElementById("job-duties");
         const saveSettingsButton = document.getElementById("save-settings-button");
+        
+        // ★新規追加: スキルシート関連の要素
+        const skillsheetInput = document.getElementById("skillsheet-input");
+        const skillsheetStatus = document.getElementById("skillsheet-status");
         
         // 面接ビューの要素
         const questionDisplay = document.getElementById("question-display");
@@ -240,12 +263,74 @@
         const historyEndButton = document.getElementById("history-end-button");
 
         // =======================================================
+        // ★新規追加: スキルシートアップロード処理
+        // =======================================================
+        
+        /**
+         * スキルシートファイルがアップロードされたときの処理
+         */
+        skillsheetInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            
+            if (!file) {
+                return;
+            }
+            
+            // ファイル形式チェック
+            const validExtensions = ['.xlsx', '.xls'];
+            const fileName = file.name.toLowerCase();
+            const isValidFile = validExtensions.some(ext => fileName.endsWith(ext));
+            
+            if (!isValidFile) {
+                skillsheetStatus.textContent = '❌ Excelファイル（.xlsx または .xls）を選択してください。';
+                skillsheetStatus.className = 'mt-2 text-sm text-red-600';
+                skillsheetInput.value = '';
+                return;
+            }
+            
+            // アップロード中の表示
+            skillsheetStatus.textContent = '⏳ アップロード中...';
+            skillsheetStatus.className = 'mt-2 text-sm text-blue-600';
+            
+            try {
+                // FormDataを作成してファイルを送信
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const response = await fetch(`${INTERVIEW_API_BASE_URL}/upload_skillsheet`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({detail: 'アップロードに失敗しました'}));
+                    throw new Error(errorData.detail || 'アップロードに失敗しました');
+                }
+                
+                const data = await response.json();
+                
+                // アップロード成功
+                hasSkillsheet = true;
+                skillsheetStatus.textContent = `✅ ${data.filename} をアップロードしました`;
+                skillsheetStatus.className = 'mt-2 text-sm text-green-600 font-medium';
+                
+                console.log('スキルシート情報:', data.preview);
+                
+            } catch (error) {
+                console.error('スキルシートアップロードエラー:', error);
+                skillsheetStatus.textContent = `❌ エラー: ${error.message}`;
+                skillsheetStatus.className = 'mt-2 text-sm text-red-600';
+                skillsheetInput.value = '';
+                hasSkillsheet = false;
+            }
+        });
+
+        // =======================================================
         // 画面切り替えと設定管理
         // =======================================================
         
         /**
          * 画面を切り替える
-         * @param {string} viewName - VIEW_STATEのキー
          */
         function switchView(viewName) {
             Object.values(views).forEach(view => {
@@ -258,7 +343,6 @@
             } else if (viewName === VIEW_STATE.SETTINGS) {
                 loadSettingsToForm();
             } else if (viewName === VIEW_STATE.INTERVIEW) {
-                // 面接開始時の初期化
                 currentQuestion = ""; 
                 questionDisplay.textContent = "面接官が考えています...";
                 answerTextArea.textContent = "";
@@ -276,6 +360,12 @@
             jobPositionInput.value = companySetting.position;
             businessDetailsTextarea.value = companySetting.business;
             jobDutiesTextarea.value = companySetting.duties;
+            
+            // スキルシートのステータスを表示
+            if (hasSkillsheet) {
+                skillsheetStatus.textContent = '✅ スキルシートがアップロード済みです';
+                skillsheetStatus.className = 'mt-2 text-sm text-green-600 font-medium';
+            }
         }
 
         /**
@@ -294,12 +384,10 @@
          */
         function updateHomeDisplay() {
             const info = getCompanyInfo();
-            // 企業名かポジションのいずれかがあれば面接開始を有効化
             if (info) {
                 startInterviewButton.disabled = false;
                 settingRequiredMessage.classList.add('opacity-0');
                 settingRequiredMessage.textContent = "";
-
             } else {
                 startInterviewButton.disabled = true;
                 settingRequiredMessage.classList.remove('opacity-0');
@@ -308,12 +396,11 @@
         }
         
         /**
-         * 4つの入力欄から情報を取得し、整形して返すヘルパー関数
+         * 企業情報を取得
          */
         function getCompanyInfo() {
             const { name, position, business, duties } = companySetting;
             
-            // 必須項目チェック: 企業名かポジションのいずれかがあればOK
             if (!name && !position) {
                 return "";
             }
@@ -332,7 +419,7 @@
         // =======================================================
 
         /**
-         * 面接開始ボタンが押されたときの処理 (ホーム画面から)
+         * 面接開始
          */
         async function startInterviewFlow() {
             if (!getCompanyInfo()) {
@@ -341,11 +428,13 @@
             }
             
             switchView(VIEW_STATE.INTERVIEW);
-            conversationHistory = []; // 新しい面接開始で履歴をリセット
+            conversationHistory = [];
             await getInitialQuestion();
         }
 
-        // 初期質問の取得 (POSTメソッドに変更し、会社情報を送信)
+        /**
+         * 初期質問の取得
+         */
         async function getInitialQuestion() {
             try {
                 const companyInfo = getCompanyInfo();
@@ -375,7 +464,9 @@
             }
         }
 
-        // 音声認識APIへの送信
+        /**
+         * 音声認識APIへの送信
+         */
         async function transcribeAudio(audioBlob) {
             try {
                 statusMessage.textContent = "回答を認識中...";
@@ -395,7 +486,6 @@
                 const transcribedText = data.text_clean || "認識できませんでした。";
                 answerTextArea.textContent = transcribedText;
                 
-                // 会話履歴に質問と回答を記録
                 conversationHistory.push({ type: "question", text: currentQuestion });
                 conversationHistory.push({ type: "answer", text: transcribedText });
 
@@ -408,7 +498,10 @@
             }
         }
 
-        // 次の質問を生成する
+        /**
+         * 次の質問を生成
+         * ★修正: スキルシート情報は不要（サーバー側で保持）
+         */
         async function submitAnswer() {
             try {
                 nextButton.disabled = true;
@@ -431,7 +524,8 @@
                     body: JSON.stringify({
                         user_answer: answerText,
                         current_question: currentQuestion,
-                        company_info: companyInfo // 企業情報を送信
+                        company_info: companyInfo
+                        // skillsheet_info は不要（サーバー側で保持している）
                     })
                 });
 
@@ -446,11 +540,9 @@
                     statusMessage.textContent = `エラーが発生しました: ${data.next_question}`;
                 }
 
-                // 次の質問を表示
                 currentQuestion = data.next_question;
                 questionDisplay.textContent = currentQuestion;
                 
-                // UIをリセットして次の回答を待機
                 answerTextArea.textContent = "";
                 statusMessage.textContent = "準備完了です。録音ボタンを押して次の回答を開始してください。";
                 recordButton.disabled = false;
@@ -462,7 +554,9 @@
             }
         }
 
-        // 全体の結果を取得して表示 (既存機能の統合)
+        /**
+         * 全体レビューを取得
+         */
         async function getFullReview() {
             try {
                 endInterviewButton.disabled = true;
@@ -484,7 +578,7 @@
                 const data = await response.json();
                 
                 fullReviewContent.textContent = data.full_review;
-                switchView(VIEW_STATE.FULL_REVIEW); // 全体レビュービューに切り替え
+                switchView(VIEW_STATE.FULL_REVIEW);
                 statusMessage.textContent = "面接のレビューが完了しました。";
             } catch (error) {
                 console.error('Error getting full review:', error);
@@ -494,7 +588,9 @@
             }
         }
         
-        // 会話履歴を表示する (既存機能の統合)
+        /**
+         * 会話履歴を表示
+         */
         function showConversationHistory() {
             switchView(VIEW_STATE.HISTORY);
             historyContent.innerHTML = "";
@@ -506,99 +602,4 @@
 
                 if (questionObj && questionObj.type === "question" && answerObj && answerObj.type === "answer") {
                     const historyItem = document.createElement('div');
-                    historyItem.className = 'mb-6 p-4 rounded-lg bg-gray-50 border border-gray-200';
-                    
-                    historyItem.innerHTML = `
-                        <div class="mb-3">
-                            <h4 class="text-md font-semibold text-gray-700">質問 ${questionCount}:</h4>
-                            <p class="mt-1 text-gray-600 break-words whitespace-pre-wrap">${questionObj.text}</p>
-                        </div>
-                        <div>
-                            <h4 class="text-md font-semibold text-gray-700">回答 ${questionCount}:</h4>
-                            <p class="mt-1 text-gray-600 break-words whitespace-pre-wrap">${answerObj.text}</p>
-                        </div>
-                    `;
-                    historyContent.appendChild(historyItem);
-                    questionCount++;
-                }
-            }
-        }
-
-
-        // マイクアクセスと録音の開始/停止 (変更なし)
-        async function startRecording() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: true,
-                    video: false
-                });
-                
-                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
-                audioChunks = [];
-
-                mediaRecorder.ondataavailable = event => {
-                    audioChunks.push(event.data);
-                };
-
-                mediaRecorder.onstop = () => {
-                    const audioBlob = new Blob(audioChunks, { 'type' : 'audio/webm' });
-                    transcribeAudio(audioBlob);
-                    stream.getTracks().forEach(track => track.stop());
-                };
-                
-                mediaRecorder.start();
-                isRecording = true;
-                recordButton.classList.add('hidden');
-                stopButtonContainer.classList.remove('hidden');
-                nextButton.disabled = true;
-                endInterviewButton.disabled = true;
-                statusMessage.textContent = "録音中...";
-            } catch (error) {
-                console.error('マイクアクセスエラー:', error);
-                statusMessage.textContent = `マイクにアクセスできませんでした。別のアプリが使用していないか確認してください。`;
-            }
-        }
-
-        function stopRecording() {
-            if (mediaRecorder && isRecording) {
-                mediaRecorder.stop();
-                isRecording = false;
-                recordButton.classList.remove('hidden');
-                stopButtonContainer.classList.add('hidden');
-                endInterviewButton.disabled = false;
-                statusMessage.textContent = "録音を停止しました。";
-            }
-        }
-
-        // =======================================================
-        // イベントリスナーの登録
-        // =======================================================
-        
-        // HOMEビュー
-        startInterviewButton.addEventListener('click', startInterviewFlow);
-        openSettingsButton.addEventListener('click', () => switchView(VIEW_STATE.SETTINGS));
-        
-        // SETTINGSビュー
-        saveSettingsButton.addEventListener('click', saveSettings);
-        
-        // INTERVIEWビュー
-        recordButton.addEventListener('click', startRecording);
-        stopButton.addEventListener('click', stopRecording);
-        nextButton.addEventListener('click', submitAnswer);
-        endInterviewButton.addEventListener('click', getFullReview); // 全体レビュー取得へ
-        
-        // FULL_REVIEWビュー
-        viewHistoryButton.addEventListener('click', showConversationHistory); // 履歴ビューへ
-        fullReviewStartButton.addEventListener('click', startInterviewFlow); // 再スタート
-        fullReviewEndButton.addEventListener('click', () => switchView(VIEW_STATE.HOME)); // ホームへ
-
-        // HISTORYビュー
-        backToReviewButton.addEventListener('click', () => switchView(VIEW_STATE.FULL_REVIEW)); // レビューに戻る
-        historyEndButton.addEventListener('click', () => switchView(VIEW_STATE.HOME)); // ホームへ
-
-        // 初期表示
-        switchView(VIEW_STATE.HOME);
-
-    </script>
-</body>
-</html>
+                    historyItem.className = 'mb-6 p-4 rounded-lg bg-gray-50 border
